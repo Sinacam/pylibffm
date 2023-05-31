@@ -4,7 +4,7 @@ LIBFFM_DIR = libffm
 
 CXX ?= g++
 CCFLAGS = -O3 -Wall -shared -std=c++17 -fPIC -fopenmp
-INCLUDE = $(shell python3-config --includes) -Ipybind11/include
+INCLUDE = $(shell python3-config --includes) -Ipybind11/include -Ilibffm
 
 EXT_SUFFIX = $(shell python3-config --extension-suffix)
 SOURCES = $(wildcard $(SOURCE_DIR)/*.cpp)

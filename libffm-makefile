@@ -1,10 +1,9 @@
 CXX = g++
 CXXFLAGS = -Wall -O3 -shared -std=c++0x -march=native -fPIC
 
-# comment the following flags if you do not want to SSE instructions
+# must always use sse and openmp for pyffm
 DFLAG += -DUSESSE
 
-# comment the following flags if you do not want to use OpenMP
 DFLAG += -DUSEOMP
 CXXFLAGS += -fopenmp
 
