@@ -1,4 +1,5 @@
 from __future__ import annotations
+import pathlib
 
 from . import wrapper
 import scipy.sparse as sparse
@@ -143,5 +144,8 @@ def train(
 
 def load(path: str) -> Model:
     """Load model from path."""
+    if not pathlib.Path(path).exists():
+        raise ValueError("file does not exist")
+
     model = wrapper.load_model(path)
     return Model(*model)
