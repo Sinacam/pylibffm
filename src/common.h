@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
@@ -17,6 +18,10 @@ using std::uint16_t;
 using std::uint32_t;
 using std::uint64_t;
 using std::uint8_t;
+
+// no-copy or no-convert array_t
+template <typename T>
+using nc_array_t = py::array_t<T, py::array::c_style>;
 
 template <typename T>
 struct type_identity

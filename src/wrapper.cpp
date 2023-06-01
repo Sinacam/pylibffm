@@ -17,7 +17,7 @@ namespace
     // Fields are passed in as extra array of dimension x_cols.
     template <typename T, typename U>
     void raw_arr2bin(int32_t x_rows, int32_t x_cols, const T* y_arr,
-                     const int32_t* x_field const U* x_data,
+                     const int32_t* x_field, const U* x_data,
                      const int32_t* x_indices, const int32_t* x_indptr,
                      const std::string& bin_path)
     {
@@ -74,7 +74,7 @@ namespace
                 auto col = x_indices[j];
 
                 ffm::ffm_node N;
-                N.f = x_fieldcol];
+                N.f = x_field[col];
                 N.j = col;
                 N.v = x_data[j];
 
@@ -111,12 +111,12 @@ namespace
     }
 
     template <typename T, typename U>
-    void arr2bin(int32_t x_rows, int32_t x_cols, py::array_t<T> y_arr,
-                 py::array_t<int32_t> x_field py::array_t<U> x_data,
-                 py::array_t<int32_t> x_indices, py::array_t<int32_t> x_indptr,
+    void arr2bin(int32_t x_rows, int32_t x_cols, nc_array_t<T> y_arr,
+                 nc_array_t<int32_t> x_field, nc_array_t<U> x_data,
+                 nc_array_t<int32_t> x_indices, nc_array_t<int32_t> x_indptr,
                  const std::string& bin_path)
     {
-        return raw_arr2bin(x_rows, x_cols, y_arr.data(), x_fielddata(),
+        return raw_arr2bin(x_rows, x_cols, y_arr.data(), x_field.data(),
                            x_data.data(), x_indices.data(), x_indptr.data(),
                            bin_path);
     }
@@ -124,10 +124,10 @@ namespace
     // Transfer ownership of ptr to an array.
     // deleter is called when there are no more references to the memory.
     template <typename T>
-    py::array_t<T> as_array(int32_t size, T* ptr, void (*deleter)(void*))
+    nc_array_t<T> as_array(int32_t size, T* ptr, void (*deleter)(void*))
     {
         auto capsule = py::capsule(ptr, deleter);
-        return py::array_t<T>{size, ptr, capsule};
+        return nc_array_t<T>{size, ptr, capsule};
     }
 
     // Transfer ownership of model weights to an array and return model fields
@@ -160,7 +160,7 @@ namespace
         return as_tuple(model);
     }
 
-    void save_model(int n, int m, int k, py::array_t<ffm::ffm_float> weights,
+    void save_model(int n, int m, int k, nc_array_t<ffm::ffm_float> weights,
                     bool normalization, std::string path)
     {
         auto model = ffm::ffm_model{
@@ -177,17 +177,17 @@ namespace
     }
 
     template <typename T>
-    py::array_t<float>
-    predict(int n, int m, int k, py::array_t<ffm::ffm_float> weights,
-            bool normalization, int32_t x_rows, int32_t x_cols,
-            py::array_t<int32_t> x_field, py::array_t<T> x_data,
-            py::array_t<int32_t> x_indices, py::array_t<int32_t> x_indptr)
+    nc_array_t<float> raw_predict(int n, int m, int k, ffm::ffm_float* weights,
+                                  bool normalization, int32_t x_rows,
+                                  int32_t x_cols, const int32_t* x_field,
+                                  const T* x_data, const int32_t* x_indices,
+                                  const int32_t* x_indptr)
     {
         auto model = ffm::ffm_model{
-            n, m, k, weights.mutable_data(), normalization,
+            n, m, k, weights, normalization,
         };
 
-        py::array_t<float> preds(x_rows);
+        nc_array_t<float> preds(x_rows);
         auto preds_ptr = preds.mutable_data();
         for(int32_t i = 0; i < x_rows; i++)
         {
@@ -195,10 +195,11 @@ namespace
             auto x_end = x_indptr[i + 1];
             std::vector<ffm::ffm_node> nodes;
             nodes.reserve(x_begin - x_end);
-            for(auto j = x_begin, j < x_end; j++)
+            for(auto j = x_begin; j < x_end; j++)
             {
                 auto col = x_indices[j];
-                nodes.push_back({x_field[col], col, x_data[j]});
+                nodes.push_back(ffm::ffm_node{x_field[col], col,
+                                              ffm::ffm_float(x_data[j])});
             }
             auto pred = ffm::ffm_predict(nodes.data(),
                                          nodes.data() + nodes.size(), model);
@@ -209,6 +210,18 @@ namespace
         return preds;
     }
 
+    template <typename T>
+    nc_array_t<float>
+    predict(int n, int m, int k, nc_array_t<ffm::ffm_float> weights,
+            bool normalization, int32_t x_rows, int32_t x_cols,
+            nc_array_t<int32_t> x_field, nc_array_t<T> x_data,
+            nc_array_t<int32_t> x_indices, nc_array_t<int32_t> x_indptr)
+    {
+        return raw_predict(n, m, k, weights.mutable_data(), normalization,
+                           x_rows, x_cols, x_field.data(), x_data.data(),
+                           x_indices.data(), x_indptr.data());
+    }
+
 } // namespace
 
 PYBIND11_MODULE(wrapper, m)
@@ -217,31 +230,11 @@ PYBIND11_MODULE(wrapper, m)
         [&](auto type)
         {
             using T = typename decltype(type)::type;
-            m.def("arr2bin", &arr2bin<T, float>, py::arg(), py::arg(),
-                  py::arg().noconvert(), py::arg().noconvert(),
-                  py::arg().noconvert(), py::arg().noconvert(),
-                  py::arg().noconvert(), py::arg(),
+            m.def("arr2bin", &arr2bin<T, float>,
                   "convert arrays to binary ffm data files");
-
-            m.def("arr2bin", &arr2bin<T, double>, py::arg(), py::arg(),
-                  py::arg().noconvert(), py::arg().noconvert(),
-                  py::arg().noconvert(), py::arg().noconvert(),
-                  py::arg().noconvert(), py::arg(),
+            m.def("arr2bin", &arr2bin<T, double>,
                   "convert arrays to binary ffm data files");
-
-            m.def("predict", &predict<T>,
-                  py::arg(),             // int n
-                  py::arg(),             // int m
-                  py::arg(),             // int k
-                  py::arg().noconvert(), // py::array_t<ffm::ffm_float> weights
-                  py::arg(),             // bool normalization
-                  py::arg(),             // int32_t x_rows
-                  py::arg(),             // int32_t x_cols
-                  py::arg().noconvert(), // py::array_t<int32_t> x_field
-                  py::arg().noconvert(), // py::array_t<T> x_data
-                  py::arg().noconvert(), // py::array_t<int32_t> x_indices
-                  py::arg().noconvert(), // py::array_t<int32_t> x_indptr
-                  "predict with model");
+            m.def("predict", &predict<T>, "predict with model");
         });
 
     m.def("train_on_disk", &train_on_disk, "train with binary ffm data files");
