@@ -1,1 +1,4 @@
 include pyffm/*.so
+include libffm/**
+exclude libffm/*.o
+include pybind11/**
