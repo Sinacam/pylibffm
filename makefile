@@ -1,4 +1,4 @@
-BUILD_DIR = pyffm
+BUILD_DIR = pylibffm
 SOURCE_DIR = src
 LIBFFM_DIR = libffm
 
@@ -9,7 +9,7 @@ INCLUDE = $(shell python3-config --includes) -Ipybind11/include -Ilibffm
 EXT_SUFFIX = $(shell python3-config --extension-suffix)
 SOURCES = $(wildcard $(SOURCE_DIR)/*.cpp)
 OBJECTS = $(patsubst $(SOURCE_DIR)/%.cpp,$(BUILD_DIR)/%$(EXT_SUFFIX),$(SOURCES))
-LIBFFM_OBJECTS = $(wildcard $(LIBFFM_DIR)/*.o)
+LIBFFM_OBJECTS = $(LIBFFM_DIR)/ffm.o $(LIBFFM_DIR)/timer.o
 
 
 all: $(OBJECTS)
@@ -21,4 +21,5 @@ $(LIBFFM_OBJECTS):
 	make -C libffm -f ../libffm-makefile
 
 clean:
+	make -C libffm -f ../libffm-makefile clean
 	rm -f $(OBJECTS) $(LIBFFM_OBJECTS)

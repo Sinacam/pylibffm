@@ -137,10 +137,16 @@ namespace
         auto size = vendor::get_w_size(model);
         auto weights = model.W;
         model.W = nullptr; // prevent deletion in destructor
-        return std::tuple{
-            model.n, model.m, model.k,
-            as_array(size, weights, [](void* ptr) { std::free(ptr); }),
-            model.normalization};
+
+#ifdef _WIN32
+        auto deleter = [](void* ptr) { _aligned_free(ptr); };
+#else
+        auto deleter = [](void* ptr) { std::free(ptr); };
+#endif
+
+        return std::tuple{model.n, model.m, model.k,
+                          as_array(size, weights, deleter),
+                          model.normalization};
     }
 
     auto train_on_disk(std::string train_path, std::string validation_path,

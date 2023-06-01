@@ -1,4 +1,5 @@
 // vendor contains copies of libffm non-visible names which is used in pyffm.
+// vendor assumes USESSE.
 #pragma once
 
 #include <ffm.h>
