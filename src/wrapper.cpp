@@ -204,7 +204,7 @@ namespace
             auto x_begin = x_indptr[i];
             auto x_end = x_indptr[i + 1];
             std::vector<ffm::ffm_node> nodes;
-            nodes.reserve(x_begin - x_end);
+            nodes.reserve(x_end - x_begin);
             for(auto j = x_begin; j < x_end; j++)
             {
                 auto col = x_indices[j];

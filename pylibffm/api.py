@@ -38,7 +38,7 @@ class Model:
         if x.shape[1] != fields.shape[0]:
             raise ValueError("input matrix shapes do not match")
 
-        wrapper.predict(
+        return wrapper.predict(
             self.n,
             self.m,
             self.k,
