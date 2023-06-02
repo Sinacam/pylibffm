@@ -2,7 +2,7 @@ import pathlib
 import setuptools
 
 name = "pylibffm"
-version = "0.2.3"
+version = "0.2.4"
 author = "ntumlgroup"
 license = "MIT License"
 license_file = "LICENSE"
