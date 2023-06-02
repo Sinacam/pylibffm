@@ -1,7 +1,7 @@
 import setuptools
 
 name = "pylibffm"
-version = "0.2.1"
+version = "0.2.2"
 author = "ntumlgroup"
 license = "MIT License"
 description = "A library wrapping libffm"
