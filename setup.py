@@ -3,7 +3,7 @@ from distutils.command.install import install as DistutilsInstall
 import subprocess
 
 name = "pylibffm"
-version = "0.1.0"
+version = "0.2.0"
 author = "ntumlgroup"
 license = "MIT License"
 description = "A library wrapping libffm"
