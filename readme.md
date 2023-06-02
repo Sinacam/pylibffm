@@ -3,11 +3,19 @@
 pylibffm is a wrapper around libffm to allow using scipy and numpy arrays as input.
 
 ## Installing
+If you're running python 3.7~3.11 on linux
 ```bash
-git clone --recurse-submodules https://github.com/Sinacam/pylibffm
+pip install pylibffm
+```
+Otherwise
+```bash
+git clone https://github.com/Sinacam/pylibffm
 cd pylibffm
+make
 pip install .
 ```
+Currently, the distribution is incredibly hacky and cannot be pip installed from source.
+Windows build support is lacking, but code should be correct.
 
 ## Documentation
 The API only consists of

@@ -1,9 +1,7 @@
 import setuptools
-from distutils.command.install import install as DistutilsInstall
-import subprocess
 
 name = "pylibffm"
-version = "0.2.0"
+version = "0.2.1"
 author = "ntumlgroup"
 license = "MIT License"
 description = "A library wrapping libffm"
@@ -11,14 +9,9 @@ description = "A library wrapping libffm"
 packages = setuptools.find_packages()
 install_requires = ["scipy", "numpy"]
 
-
-class MakeThenInstall(DistutilsInstall):
-    def run(self):
-        if subprocess.call("make") != 0:
-            raise ValueError("extension module compilation error")
-        DistutilsInstall.run(self)
-
-
+# Extension modules are completely useless, because they are in effect a dumber and duplicate makefile.
+# As it stands, there are __zero__ ways of calling out to make during installation,
+# so the current solution is to distribute all binaries and pretend it's part of the source files.
 if __name__ == "__main__":
     setuptools.setup(
         name=name,
@@ -32,6 +25,8 @@ if __name__ == "__main__":
         # project_urls=project_urls,
         # classifiers=classifiers,
         packages=packages,
+        package_data={
+            "pylibffm": ["wrapper*.so"],
+        },
         install_requires=install_requires,
-        cmdclass={"install": MakeThenInstall},
     )
