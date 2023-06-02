@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import pathlib
+import uuid
+
+import numpy as np
+import scipy.sparse as sparse
 
 from . import wrapper
-import scipy.sparse as sparse
-import numpy as np
-import uuid
 
 __all__ = ["Model", "train", "load"]
 
@@ -101,6 +103,15 @@ def train(
         if valid_x.shape[0] != valid_y.shape[0] or valid_x.shape[1] != fields.shape[0]:
             raise ValueError("input matrix shapes do not match")
 
+    # x is converted to float within the C++ wrapper because x is relatively large
+    # y and fields are converted to float here because they are small
+    # The C++ wrapper will give an error on wrong array types, so this won't cause hidden bugs
+    fields = fields.astype(np.int32, copy=False)
+    train_y = (train_y > 0).astype(np.float32, copy=False) * 2 - 1
+    if options["auto_stop"]:
+        valid_y = (valid_y > 0).astype(np.float32, copy=False) * 2 - 1
+
+    pathlib.Path(tmpdir).mkdir(parents=True, exist_ok=True)
     train_path = f"{tmpdir}/{uuid.uuid4().hex}"
     wrapper.arr2bin(
         train_x.shape[0],

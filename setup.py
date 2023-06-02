@@ -14,7 +14,8 @@ install_requires = ["scipy", "numpy"]
 
 class MakeThenInstall(DistutilsInstall):
     def run(self):
-        subprocess.call("make", shell=True, executable="/bin/bash")
+        if subprocess.call("make") != 0:
+            raise ValueError("extension module compilation error")
         DistutilsInstall.run(self)
 
 

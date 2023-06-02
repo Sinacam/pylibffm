@@ -1,10 +1,12 @@
 #include <algorithm>
 #include <fstream>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include <ffm.h>
+#include <omp.h>
 
 #include "common.h"
 #include "vendor.h"
@@ -15,13 +17,15 @@ namespace
     // Instead of parsing values from file, reads from dense y array and sparse
     // x array.
     // Fields are passed in as extra array of dimension x_cols.
-    template <typename T, typename U>
-    void raw_arr2bin(int32_t x_rows, int32_t x_cols, const T* y_arr,
-                     const int32_t* x_field, const U* x_data,
-                     const int32_t* x_indices, const int32_t* x_indptr,
-                     const std::string& bin_path)
+    template <typename T>
+    void raw_arr2bin(int32_t x_rows, int32_t x_cols,
+                     const ffm::ffm_float* y_data, const int32_t* fields,
+                     const T* x_data, const int32_t* x_indices,
+                     const int32_t* x_indptr, const std::string& bin_path)
     {
         std::ofstream f_bin(bin_path, std::ios::out | std::ios::binary);
+        if(!f_bin)
+            throw std::runtime_error("cannot open temporary file");
 
         std::vector<char> line(vendor::kMaxLineSize);
 
@@ -64,7 +68,7 @@ namespace
 
         for(int32_t i = 0; i < x_rows; i++)
         {
-            ffm::ffm_float y = y_arr[i] > 0 ? 1.0f : -1.0f;
+            ffm::ffm_float y = y_data[i];
 
             ffm::ffm_float scale = 0;
             auto x_begin = x_indptr[i];
@@ -74,7 +78,7 @@ namespace
                 auto col = x_indices[j];
 
                 ffm::ffm_node N;
-                N.f = x_field[col];
+                N.f = fields[col];
                 N.j = col;
                 N.v = x_data[j];
 
@@ -110,13 +114,13 @@ namespace
                     sizeof(vendor::disk_problem_meta));
     }
 
-    template <typename T, typename U>
-    void arr2bin(int32_t x_rows, int32_t x_cols, nc_array_t<T> y_arr,
-                 nc_array_t<int32_t> x_field, nc_array_t<U> x_data,
-                 nc_array_t<int32_t> x_indices, nc_array_t<int32_t> x_indptr,
-                 const std::string& bin_path)
+    template <typename T>
+    void arr2bin(int32_t x_rows, int32_t x_cols,
+                 nc_array_t<ffm::ffm_float> y_data, nc_array_t<int32_t> fields,
+                 nc_array_t<T> x_data, nc_array_t<int32_t> x_indices,
+                 nc_array_t<int32_t> x_indptr, const std::string& bin_path)
     {
-        return raw_arr2bin(x_rows, x_cols, y_arr.data(), x_field.data(),
+        return raw_arr2bin(x_rows, x_cols, y_data.data(), fields.data(),
                            x_data.data(), x_indices.data(), x_indptr.data(),
                            bin_path);
     }
@@ -185,7 +189,7 @@ namespace
     template <typename T>
     nc_array_t<float> raw_predict(int n, int m, int k, ffm::ffm_float* weights,
                                   bool normalization, int32_t x_rows,
-                                  int32_t x_cols, const int32_t* x_field,
+                                  int32_t x_cols, const int32_t* fields,
                                   const T* x_data, const int32_t* x_indices,
                                   const int32_t* x_indptr)
     {
@@ -204,8 +208,8 @@ namespace
             for(auto j = x_begin; j < x_end; j++)
             {
                 auto col = x_indices[j];
-                nodes.push_back(ffm::ffm_node{x_field[col], col,
-                                              ffm::ffm_float(x_data[j])});
+                nodes.push_back(
+                    ffm::ffm_node{fields[col], col, ffm::ffm_float(x_data[j])});
             }
             auto pred = ffm::ffm_predict(nodes.data(),
                                          nodes.data() + nodes.size(), model);
@@ -220,11 +224,11 @@ namespace
     nc_array_t<float>
     predict(int n, int m, int k, nc_array_t<ffm::ffm_float> weights,
             bool normalization, int32_t x_rows, int32_t x_cols,
-            nc_array_t<int32_t> x_field, nc_array_t<T> x_data,
+            nc_array_t<int32_t> fields, nc_array_t<T> x_data,
             nc_array_t<int32_t> x_indices, nc_array_t<int32_t> x_indptr)
     {
         return raw_predict(n, m, k, weights.mutable_data(), normalization,
-                           x_rows, x_cols, x_field.data(), x_data.data(),
+                           x_rows, x_cols, fields.data(), x_data.data(),
                            x_indices.data(), x_indptr.data());
     }
 
@@ -236,9 +240,9 @@ PYBIND11_MODULE(wrapper, m)
         [&](auto type)
         {
             using T = typename decltype(type)::type;
-            m.def("arr2bin", &arr2bin<T, float>,
+            m.def("arr2bin", &arr2bin<float>,
                   "convert arrays to binary ffm data files");
-            m.def("arr2bin", &arr2bin<T, double>,
+            m.def("arr2bin", &arr2bin<double>,
                   "convert arrays to binary ffm data files");
             m.def("predict", &predict<T>, "predict with model");
         });
