@@ -1,6 +1,7 @@
 # pylibffm
 
 pylibffm is a wrapper around libffm to allow using scipy and numpy arrays as input.
+pylibffm requires SSE and openmp.
 
 ## Installing
 If you're running python 3.7~3.11 on linux

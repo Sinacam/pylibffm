@@ -1,6 +1,8 @@
 from __future__ import annotations
+import hashlib
 
 import pathlib
+import sys
 import uuid
 
 import numpy as np
@@ -112,30 +114,20 @@ def train(
         valid_y = (valid_y > 0).astype(np.float32, copy=False) * 2 - 1
 
     pathlib.Path(tmpdir).mkdir(parents=True, exist_ok=True)
-    train_path = f"{tmpdir}/{uuid.uuid4().hex}"
-    wrapper.arr2bin(
-        train_x.shape[0],
-        train_x.shape[1],
-        train_y,
-        fields,
-        train_x.data,
-        train_x.indices,
-        train_x.indptr,
-        train_path,
-    )
+    train_path, cached = _make_bin(tmpdir, train_x, train_y, fields)
+    if cached:
+        print(
+            f'Using training data cache "{train_path}"',
+            file=sys.stderr,
+        )
 
     if options["auto_stop"]:
-        valid_path = f"{tmpdir}/{uuid.uuid4().hex}"
-        wrapper.arr2bin(
-            valid_x.shape[0],
-            valid_x.shape[1],
-            valid_y,
-            fields,
-            valid_x.data,
-            valid_x.indices,
-            valid_x.indptr,
-            valid_path,
-        )
+        valid_path, cached = _make_bin(tmpdir, valid_x, valid_y, fields)
+        if cached:
+            print(
+                f'Using validation data cache "{valid_path}"',
+                file=sys.stderr,
+            )
     else:
         valid_path = ""
 
@@ -160,3 +152,49 @@ def load(path: str) -> Model:
 
     model = wrapper.load_model(path)
     return Model(*model)
+
+
+def _fingerprint(x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray) -> str:
+    mid = x.shape[0] // 2
+    fingerprint = str(
+        (
+            *x.shape,
+            *y.shape,
+            fields.size,
+            x.nnz,
+            x[:5].data,
+            x[mid : mid + 5].data,
+            x[-5:].data,
+            y[:20],
+            y[mid : mid + 20],
+            y[-20:],
+            fields[:20],
+            fields[fields.size // 2 : fields.size // 2 + 20],
+            fields[-20:],
+        )
+    )
+    h = hashlib.sha256()
+    h.update(fingerprint.encode("utf-8"))
+
+    return h.hexdigest()[:32]
+
+
+def _make_bin(
+    dir: str, x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray
+) -> tuple[str, bool]:
+    path = f"{dir}/{_fingerprint(x, y, fields)}"
+    if pathlib.Path(path).exists():
+        return path, True
+
+    wrapper.arr2bin(
+        x.shape[0],
+        x.shape[1],
+        y,
+        fields,
+        x.data,
+        x.indices,
+        x.indptr,
+        path,
+    )
+
+    return path, False
