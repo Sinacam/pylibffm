@@ -10,7 +10,7 @@ pip install pylibffm
 ```
 Otherwise
 ```bash
-git clone https://github.com/Sinacam/pylibffm
+git clone --recurse-submodules https://github.com/Sinacam/pylibffm
 cd pylibffm
 make
 pip install .
