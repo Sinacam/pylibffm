@@ -19,12 +19,14 @@ Currently, the distribution is incredibly hacky and cannot be pip installed from
 Windows build support is lacking, but code should be correct.
 
 ## Documentation
-The API only consists of
+The API consists of
 + `train`
 + `load`
 + `Model`
     + `Model.save`
     + `Model.predict`
++ `make_bin`
++ `train_with_bin`
 
 Use `help` or read their docstring for their usage.
 

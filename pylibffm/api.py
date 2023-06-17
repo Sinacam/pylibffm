@@ -3,14 +3,13 @@ import hashlib
 
 import pathlib
 import sys
-import uuid
 
 import numpy as np
 import scipy.sparse as sparse
 
 from . import wrapper
 
-__all__ = ["Model", "train", "load"]
+__all__ = ["Model", "train", "train_with_bin", "load", "make_bin"]
 
 
 class Model:
@@ -82,6 +81,50 @@ def train(
     Returns:
         Model: Trained model. Can be saved and used to predict.
     """
+    _check_data(train_x, train_y, fields)
+
+    if options.get("auto_stop", False):
+        if valid_x is None or valid_y is None:
+            raise ValueError("no validation set provided for auto-stop")
+        _check_data(valid_x, valid_y, fields)
+
+    train_path, cached = make_bin(tmpdir, train_x, train_y, fields)
+    if cached:
+        print(
+            f'Using training data cache "{train_path}"',
+            file=sys.stderr,
+        )
+
+    if options.get("auto_stop", False):
+        valid_path, cached = make_bin(tmpdir, valid_x, valid_y, fields)
+        if cached:
+            print(
+                f'Using validation data cache "{valid_path}"',
+                file=sys.stderr,
+            )
+    else:
+        valid_path = None
+
+    return train_with_bin(train_path, options, valid_path)
+
+
+def train_with_bin(
+    train_path: str | pathlib.Path,
+    options: dict[str, int | float | bool] = {},
+    valid_path: pathlib.Path = None,
+) -> Model:
+    """Trains a model on data created from make_bin.
+    Refer to ffm_parameter in ffm.h from libffm for the meaning of options.
+    Validation data must be provided if auto-stop is used.
+
+    Args:
+        train_path (str | pathlib.Path): Path to training data created from make_bin.
+        options (dict[str, int  |  float  |  bool], optional): A dictionary of options. Unspecified options will default to the same as libffm. Defaults to {}.
+        valid_path (str | pathlib.Path, optional): Path to validation data created from make_bin.
+
+    Returns:
+        Model: Trained model. Can be saved and used to predict.
+    """
     default_options = {
         "eta": 0.2,
         "lambda": 0.00002,
@@ -93,48 +136,20 @@ def train(
 
     options = {**default_options, **options}
 
-    if train_y.ndim != 1 or fields.ndim != 1:
-        raise ValueError("invalid input matrix shapes")
-    if train_x.shape[0] != train_y.shape[0] or train_x.shape[1] != fields.shape[0]:
-        raise ValueError("input matrix shapes do not match")
+    if not pathlib.Path(train_path).is_file():
+        raise ValueError("training file does not exist")
 
     if options["auto_stop"]:
-        if valid_x is None or valid_y is None:
+        if valid_path is None:
             raise ValueError("no validation set provided for auto-stop")
-        if valid_y.ndim != 1 or fields.ndim != 1:
-            raise ValueError("invalid input matrix shapes")
-        if valid_x.shape[0] != valid_y.shape[0] or valid_x.shape[1] != fields.shape[0]:
-            raise ValueError("input matrix shapes do not match")
-
-    # x is converted to float within the C++ wrapper because x is relatively large
-    # y and fields are converted to float here because they are small
-    # The C++ wrapper will give an error on wrong array types, so this won't cause hidden bugs
-    fields = fields.astype(np.int32, copy=False)
-    train_y = (train_y > 0).astype(np.float32, copy=False) * 2 - 1
-    if options["auto_stop"]:
-        valid_y = (valid_y > 0).astype(np.float32, copy=False) * 2 - 1
-
-    pathlib.Path(tmpdir).mkdir(parents=True, exist_ok=True)
-    train_path, cached = _make_bin(tmpdir, train_x, train_y, fields)
-    if cached:
-        print(
-            f'Using training data cache "{train_path}"',
-            file=sys.stderr,
-        )
-
-    if options["auto_stop"]:
-        valid_path, cached = _make_bin(tmpdir, valid_x, valid_y, fields)
-        if cached:
-            print(
-                f'Using validation data cache "{valid_path}"',
-                file=sys.stderr,
-            )
+        if not pathlib.Path(valid_path).is_file():
+            raise ValueError("validation file does not exist")
     else:
         valid_path = ""
 
     model = wrapper.train_on_disk(
-        train_path,
-        valid_path,
+        f"{train_path}",
+        f"{valid_path}",
         options["eta"],
         options["lambda"],
         options["nr_iters"],
@@ -180,13 +195,35 @@ def _fingerprint(x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray) -> str
     return h.hexdigest()[:32]
 
 
-def _make_bin(
-    dir: str, x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray
+def make_bin(
+    dir: str | pathlib.Path, x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray
 ) -> tuple[str, bool]:
+    """Create binary files for training. The path names are created from a fingerprint
+    of the input data. If another file already exists with the same name, it is assumed
+    they are the same data.
+
+    Args:
+        dir (str | pathlib.Path): The destination directory.
+        x (sparse.csr_matrix): A matrix with dimension number of instances * number of features.
+        y (np.ndarray): A 0/1 array with dimension number of instances.
+        fields (np.ndarray): A non-negative integral array with dimension number of features.
+
+    Returns:
+        tuple[str, bool]: The resulting file path and whether it already exists prior to calling make_bin.
+    """
+    _check_data(x, y, fields)
+
+    # x is converted to float within the C++ wrapper because x is relatively large
+    # y and fields are converted to float here because they are small
+    # The C++ wrapper will give an error on wrong array types, so either way, this won't cause hidden bugs
+    fields = fields.astype(np.int32, copy=False)
+    y = (y > 0).astype(np.float32, copy=False) * 2 - 1
+
     path = f"{dir}/{_fingerprint(x, y, fields)}"
     if pathlib.Path(path).exists():
         return path, True
 
+    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
     wrapper.arr2bin(
         x.shape[0],
         x.shape[1],
@@ -199,3 +236,10 @@ def _make_bin(
     )
 
     return path, False
+
+
+def _check_data(x: sparse.csr_matrix, y: np.ndarray, fields: np.ndarray):
+    if y.ndim != 1 or fields.ndim != 1:
+        raise ValueError("invalid input matrix shapes")
+    if x.shape[0] != y.shape[0] or x.shape[1] != fields.shape[0]:
+        raise ValueError("input matrix shapes do not match")
