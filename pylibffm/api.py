@@ -63,6 +63,7 @@ def train(
     options: dict[str, int | float | bool] = {},
     valid_x: sparse.csr_matrix = None,
     valid_y: np.ndarray = None,
+    log_path: str = "",
 ) -> Model:
     """Trains a model on given data.
     fields is an array used to indicate the field of each feature column in x.
@@ -105,6 +106,7 @@ def train(
     else:
         valid_path = None
 
+    options["log_path"] = str(log_path)
     return train_with_bin(train_path, options, valid_path)
 
 
@@ -132,6 +134,7 @@ def train_with_bin(
         "k": 4,
         "normalization": True,
         "auto_stop": False,
+        "log_path": "",
     }
 
     options = {**default_options, **options}
@@ -156,6 +159,7 @@ def train_with_bin(
         options["k"],
         options["normalization"],
         options["auto_stop"],
+        options["log_path"],
     )
 
     return Model(*model)

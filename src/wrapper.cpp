@@ -155,7 +155,7 @@ namespace
 
     auto train_on_disk(std::string train_path, std::string validation_path,
                        float eta, float lambda, int nr_iters, int k,
-                       bool normalization, bool auto_stop)
+                       bool normalization, bool auto_stop, std::string log_path)
     {
         auto model = ffm::ffm_train_on_disk(std::move(train_path),
                                             std::move(validation_path),
@@ -166,7 +166,8 @@ namespace
                                                 k,
                                                 normalization,
                                                 auto_stop,
-                                            });
+                                            },
+                                            std::move(log_path));
         return as_tuple(model);
     }
 
