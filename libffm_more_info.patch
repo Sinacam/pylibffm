@@ -1,5 +1,5 @@
 diff --git a/ffm.cpp b/ffm.cpp
-index 8461152..9914694 100644
+index 8461152..e530605 100644
 --- a/ffm.cpp
 +++ b/ffm.cpp
 @@ -18,6 +18,7 @@ R: Precomputed scaling factor to make the 2-norm of each instance to be 1. len(R
@@ -27,40 +27,50 @@ index 8461152..9914694 100644
  
      problem_on_disk tr(tr_path);
      problem_on_disk va(va_path);
-@@ -558,6 +560,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -558,6 +560,14 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
      cout << endl;
  
      Timer timer;
 +    ofstream log{log_path};
 +    if(log_path != "" && !log.good())
 +        throw runtime_error("cannot open " + log_path);
++    if(log.good())
++        log << "epoch,global_step,instance_loss\n";
++        
 +    mutex log_mtx;
-+    int64_t step = 0;
++    int64_t step = 0, epoch = 0;
  
      auto one_epoch = [&] (problem_on_disk &prob, bool do_update) {
  
-@@ -592,6 +599,13 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -591,7 +601,15 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+ 
                  ffm_double expnyt = exp(-y*t);
  
-                 loss += log1p(expnyt);
-+                if(log.good())
+-                loss += log1p(expnyt);
++                auto instance_loss = log1p(expnyt);
++                loss += instance_loss;
++                if(do_update && log.good())
 +                {
 +                    char buf[64];
-+                    snprintf(buf, sizeof(buf), "%ld,%f\n", step + ii, loss);
++                    snprintf(buf, sizeof(buf), "%ld,%ld,%f\n", epoch, step + ii, instance_loss);
 +                    lock_guard<mutex> guard{log_mtx};
 +                    log << buf;
 +                }
  
                  if(do_update) {
                     
-@@ -600,6 +614,7 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -600,7 +618,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                      wTx(begin, end, r, model, kappa, param.eta, param.lambda, true);
                  }
              }
-+            step += l;
++            if(do_update)
++                step += l;
          }
++        if(do_update)
++            epoch += 1;
  
          return loss / prob.meta.l;
+     };
 diff --git a/ffm.h b/ffm.h
 index fb7b8d7..a1e0bb3 100644
 --- a/ffm.h
