@@ -1,5 +1,5 @@
 diff --git a/ffm.cpp b/ffm.cpp
-index 8461152..88a1723 100644
+index 8461152..9914694 100644
 --- a/ffm.cpp
 +++ b/ffm.cpp
 @@ -18,6 +18,7 @@ R: Precomputed scaling factor to make the 2-norm of each instance to be 1. len(R
@@ -10,7 +10,15 @@ index 8461152..88a1723 100644
  #pragma GCC diagnostic ignored "-Wunused-result" 
  #include <algorithm>
  #include <cmath>
-@@ -529,7 +530,7 @@ void ffm_read_problem_to_disk(string txt_path, string bin_path) {
+@@ -33,6 +34,7 @@ v: Value of each element in the problem
+ #include <vector>
+ #include <cassert>
+ #include <numeric>
++#include <mutex>
+ 
+ #if defined USESSE
+ #include <pmmintrin.h>
+@@ -529,7 +531,7 @@ void ffm_read_problem_to_disk(string txt_path, string bin_path) {
      }
  }
  
@@ -19,16 +27,19 @@ index 8461152..88a1723 100644
  
      problem_on_disk tr(tr_path);
      problem_on_disk va(va_path);
-@@ -558,6 +559,8 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -558,6 +560,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
      cout << endl;
  
      Timer timer;
 +    ofstream log{log_path};
++    if(log_path != "" && !log.good())
++        throw runtime_error("cannot open " + log_path);
++    mutex log_mtx;
 +    int64_t step = 0;
  
      auto one_epoch = [&] (problem_on_disk &prob, bool do_update) {
  
-@@ -592,6 +595,12 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -592,6 +599,13 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                  ffm_double expnyt = exp(-y*t);
  
                  loss += log1p(expnyt);
@@ -36,12 +47,13 @@ index 8461152..88a1723 100644
 +                {
 +                    char buf[64];
 +                    snprintf(buf, sizeof(buf), "%ld,%f\n", step + ii, loss);
++                    lock_guard<mutex> guard{log_mtx};
 +                    log << buf;
 +                }
  
                  if(do_update) {
                     
-@@ -600,6 +609,7 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -600,6 +614,7 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                      wTx(begin, end, r, model, kappa, param.eta, param.lambda, true);
                  }
              }

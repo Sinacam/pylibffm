@@ -106,7 +106,7 @@ def train(
     else:
         valid_path = None
 
-    options["log_path"] = str(log_path)
+    options["log_path"] = log_path
     return train_with_bin(train_path, options, valid_path)
 
 
