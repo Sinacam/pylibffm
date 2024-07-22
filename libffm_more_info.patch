@@ -1,5 +1,5 @@
 diff --git a/ffm.cpp b/ffm.cpp
-index 8461152..e530605 100644
+index 8461152..a5b747d 100644
 --- a/ffm.cpp
 +++ b/ffm.cpp
 @@ -18,6 +18,7 @@ R: Precomputed scaling factor to make the 2-norm of each instance to be 1. len(R
@@ -35,31 +35,27 @@ index 8461152..e530605 100644
 +    if(log_path != "" && !log.good())
 +        throw runtime_error("cannot open " + log_path);
 +    if(log.good())
-+        log << "epoch,global_step,instance_loss\n";
++        log << "epoch,global_step,epoch_accumulated_loss\n";
 +        
-+    mutex log_mtx;
 +    int64_t step = 0, epoch = 0;
++    int64_t log_freq = max(1, tr.meta.l / 10);
  
      auto one_epoch = [&] (problem_on_disk &prob, bool do_update) {
  
-@@ -591,7 +601,15 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
- 
+@@ -592,6 +602,12 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                  ffm_double expnyt = exp(-y*t);
  
--                loss += log1p(expnyt);
-+                auto instance_loss = log1p(expnyt);
-+                loss += instance_loss;
-+                if(do_update && log.good())
+                 loss += log1p(expnyt);
++                if(do_update && ((step + ii) % log_freq == 0) && log.good())
 +                {
 +                    char buf[64];
-+                    snprintf(buf, sizeof(buf), "%ld,%ld,%f\n", epoch, step + ii, instance_loss);
-+                    lock_guard<mutex> guard{log_mtx};
++                    snprintf(buf, sizeof(buf), "%ld,%ld,%f\n", epoch, step + ii, loss);
 +                    log << buf;
 +                }
  
                  if(do_update) {
                     
-@@ -600,7 +618,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -600,7 +616,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                      wTx(begin, end, r, model, kappa, param.eta, param.lambda, true);
                  }
              }
