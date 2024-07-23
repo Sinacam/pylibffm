@@ -1,5 +1,5 @@
 diff --git a/ffm.cpp b/ffm.cpp
-index 8461152..fdf8b35 100644
+index 8461152..536bd57 100644
 --- a/ffm.cpp
 +++ b/ffm.cpp
 @@ -18,6 +18,7 @@ R: Precomputed scaling factor to make the 2-norm of each instance to be 1. len(R
@@ -45,11 +45,11 @@ index 8461152..fdf8b35 100644
      auto one_epoch = [&] (problem_on_disk &prob, bool do_update) {
  
          ffm_double loss = 0;
-+        atomic<ffm_double> thread_local_losses[64];
++        atomic<ffm_double> thread_local_losses[64]{};
  
          vector<ffm_int> outer_order(prob.meta.num_blocks);
          iota(outer_order.begin(), outer_order.end(), 0);
-@@ -590,8 +603,24 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -590,8 +603,26 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                  ffm_double t = wTx(begin, end, r, model);
  
                  ffm_double expnyt = exp(-y*t);
@@ -66,7 +66,9 @@ index 8461152..fdf8b35 100644
 +                    char buf[64];
 +                    double synced_loss = 0;
 +                    for(auto& tl_loss : thread_local_losses)
++                    {
 +                        synced_loss += tl_loss.load(memory_order_relaxed);
++                    }
 +
 +                    snprintf(buf, sizeof(buf), "%ld,%ld,%f", epoch, step + ii, synced_loss);
 +                    lock_guard<mutex> lck{log_mtx};
@@ -75,7 +77,7 @@ index 8461152..fdf8b35 100644
  
                  if(do_update) {
                     
-@@ -600,7 +629,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
+@@ -600,7 +631,11 @@ ffm_model ffm_train_on_disk(string tr_path, string va_path, ffm_parameter param)
                      wTx(begin, end, r, model, kappa, param.eta, param.lambda, true);
                  }
              }
