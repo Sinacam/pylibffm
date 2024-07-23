@@ -1,5 +1,5 @@
 diff --git a/ffm.cpp b/ffm.cpp
-index 8461152..d37dc70 100644
+index 8461152..fdf8b35 100644
 --- a/ffm.cpp
 +++ b/ffm.cpp
 @@ -18,6 +18,7 @@ R: Precomputed scaling factor to make the 2-norm of each instance to be 1. len(R
@@ -68,9 +68,9 @@ index 8461152..d37dc70 100644
 +                    for(auto& tl_loss : thread_local_losses)
 +                        synced_loss += tl_loss.load(memory_order_relaxed);
 +
-+                    snprintf(buf, sizeof(buf), "%ld,%ld,%f\n", epoch, step + ii, synced_loss);
++                    snprintf(buf, sizeof(buf), "%ld,%ld,%f", epoch, step + ii, synced_loss);
 +                    lock_guard<mutex> lck{log_mtx};
-+                    log << buf;
++                    log << buf << endl;
 +                }
  
                  if(do_update) {
