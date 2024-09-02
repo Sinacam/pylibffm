@@ -1,6 +1,7 @@
 [submodule "libffm"]
 	path = libffm
-	url = https://github.com/ycjuan/libffm
+	url = https://github.com/Sinacam/libffm
+        branch = batch-loss
 [submodule "pybind11"]
 	path = pybind11
 	url = https://github.com/pybind/pybind11

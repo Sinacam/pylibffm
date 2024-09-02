@@ -1,7 +1,6 @@
 CXX ?= g++
-CXXFLAGS = -Wall -O3 -shared -std=c++14 -march=native -fPIC
+CXXFLAGS = -Wall -O3 -std=c++17 -march=native -fPIC -shared
 
-# must always use sse and openmp for pyffm
 DFLAG += -DUSESSE
 
 DFLAG += -DUSEOMP
@@ -10,8 +9,6 @@ CXXFLAGS += -fopenmp
 all: ffm.o timer.o
 
 ffm.o: ffm.cpp ffm.h timer.o
-	git restore ffm.cpp ffm.h
-	git apply ../libffm_more_info.patch 2> /dev/null
 	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $<
 
 timer.o: timer.cpp timer.h
